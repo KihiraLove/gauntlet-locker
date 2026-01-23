@@ -14,7 +14,7 @@ repositories {
 }
 
 def runeLiteVersion = 'latest.release'
-def pluginMainClass = 'com.gauntletlocker.GauntletLockerPlugin'
+def pluginMainClass = 'com.gauntletlocker.GauntletLockerPluginTest'
 
 dependencies {
 	compileOnly group: 'net.runelite', name:'client', version: runeLiteVersion
