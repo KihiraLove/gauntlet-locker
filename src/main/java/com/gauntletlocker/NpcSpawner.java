@@ -14,23 +14,23 @@ import java.util.Random;
 
 public class NpcSpawner
 { 
-  private static ClientSideNpc deathNpc = null;
+	private static ClientSideNpc deathNpc = null;
   
-  private static void constructNpc(RuneliteObjectManager runeliteObjectManager, CLient client)
-  {
-    WorldPoint playerPos = client.getLocalPlayer().getWorldLocation();
+	private static void constructNpc(RuneliteObjectManager runeliteObjectManager, CLient client)
+    {
+		WorldPoint playerPos = client.getLocalPlayer().getWorldLocation();
 		WorldPoint posByPLayer = new WorldPoint(playerPos.getX(), playerPos.getY() + 1, playerPos.getPlane());
 		ClientSideNpc npc = runeliteObjectManager.createFakeNpc("global", constructNpcObject(client), posByPLayer, 862);
 		npc.setName("Death");
 		npc.setExamine("Will not let you in!");
 		npc.addExamineAction(runeliteObjectManager);
 		npc.disable();
-    deathNpc = npc;
-  }
+    	deathNpc = npc;
+    }
 
-  private static Model constructNpcObject(CLient client)
-  {
-    NPCComposition npc = client.getNpcDefinition(NpcID.HALLOWEEN_DEATH);
+    private static Model constructNpcObject(CLient client)
+    {
+    	NPCComposition npc = client.getNpcDefinition(NpcID.HALLOWEEN_DEATH);
 		int[] models = npc.getModels();
 		short[] coloursToReplace = npc.getColorToReplace();
 		short[] coloursToReplaceWith = npc.getColorToReplaceWith();
@@ -44,5 +44,5 @@ public class NpcSpawner
 		}
 		return mdf.cloneColors()
 			.light();
-  }
+    }
 }
