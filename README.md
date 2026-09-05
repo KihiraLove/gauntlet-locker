@@ -1,21 +1,24 @@
-# Gauntlet Locker  
-Locks the gauntlet portal to be unaccessible.  
-This plugin was requested by Only_Trails for his upcoming series.  
+# Gauntlet Locker
 
-# Dev notes  
-Gauntlet portal ID: 36081  
-Stun sound id: 2727  
-Animation id: 881 G: 245  
+Locks the Gauntlet portal so it cannot be entered.
 
-Chathead:  
-Model id: 9855  
-Animation id: 563  
-rotation  
-x: 40  
-y: 0  
-z: 1882  
-zoom: 796  
+When the player tries to enter the portal, the plugin consumes the interaction and replaces it with a short client-side warning sequence:
 
-npc id: HALLOWEEN_DEATH = 5567
+- the portal is covered by a translucent light-grey overlay;
+- the Enter menu entry is greyed out;
+- the normal interaction is blocked and a red click marker is rendered;
+- Halloween Death appears beside the portal and performs the halberd Swipe animation;
+- Death says: `I told you this was off limits.`;
+- the player simultaneously plays the stun animation and stun sound effect.
 
+The sequence is entirely client-side and does not send the portal interaction to the game.
 
+## Development notes
+
+| Purpose | ID |
+| --- | ---: |
+| Gauntlet portal object | 36081 |
+| Halloween Death NPC | 5567 |
+| Halberd Swipe animation | 440 |
+| Player stun animation | 881 |
+| Player stun sound | 2727 |
