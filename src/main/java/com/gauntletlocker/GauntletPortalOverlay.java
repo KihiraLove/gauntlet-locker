@@ -3,16 +3,21 @@ package com.gauntletlocker;
 import com.google.inject.Inject;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.Perspective;
+import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.RuneLiteObject;
 import net.runelite.api.SpriteID;
+import net.runelite.api.WorldView;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -21,21 +26,20 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 
 public class GauntletPortalOverlay extends Overlay
 {
+	private static final Color PORTAL_LOCK_COLOUR = new Color(211, 211, 211, 105);
+
 	private final Client client;
 	private final GauntletLockerPlugin plugin;
-	private final GauntletLockerConfig config;
 	private final SpriteManager spriteManager;
 
 	@Inject
 	public GauntletPortalOverlay(
 		Client client,
 		GauntletLockerPlugin plugin,
-		GauntletLockerConfig config,
 		SpriteManager spriteManager)
 	{
 		this.client = client;
 		this.plugin = plugin;
-		this.config = config;
 		this.spriteManager = spriteManager;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_SCENE);
@@ -53,7 +57,11 @@ public class GauntletPortalOverlay extends Overlay
 
 	private void renderPortalLock(Graphics2D graphics)
 	{
-		graphics.setColor(config.overlayColour());
+		Player player = client.getLocalPlayer();
+		Shape playerHull = player == null ? null : player.getConvexHull();
+		Shape deathClickbox = getDeathClickbox();
+
+		graphics.setColor(PORTAL_LOCK_COLOUR);
 
 		for (GameObject object : plugin.getPortals())
 		{
@@ -63,10 +71,22 @@ public class GauntletPortalOverlay extends Overlay
 			}
 
 			Shape hull = object.getConvexHull();
-			if (hull != null)
+			if (hull == null)
 			{
-				graphics.fill(hull);
+				continue;
 			}
+
+			Area visiblePortal = new Area(hull);
+			if (playerHull != null)
+			{
+				visiblePortal.subtract(new Area(playerHull));
+			}
+			if (deathClickbox != null)
+			{
+				visiblePortal.subtract(new Area(deathClickbox));
+			}
+
+			graphics.fill(visiblePortal);
 		}
 	}
 
@@ -74,22 +94,65 @@ public class GauntletPortalOverlay extends Overlay
 	{
 		RuneLiteObject death = plugin.getDeathObject();
 		String text = plugin.getDeathOverheadText();
-		if (death == null || text == null || !death.isActive() || death.getBaseModel() == null)
+		if (death == null || text == null || !death.isActive())
 		{
 			return;
 		}
 
-		int height = death.getBaseModel().getModelHeight() + 40;
-		Point location = Perspective.localToCanvas(
-			client,
-			death.getLocation(),
-			death.getLevel(),
-			height);
+		FontMetrics fontMetrics = graphics.getFontMetrics();
+		Shape clickbox = getDeathClickbox();
+		Point textLocation = null;
 
-		if (location != null)
+		if (clickbox != null)
 		{
-			OverlayUtil.renderTextLocation(graphics, location, text, Color.WHITE);
+			Rectangle bounds = clickbox.getBounds();
+			int x = bounds.x + (bounds.width - fontMetrics.stringWidth(text)) / 2;
+			int y = bounds.y - 8;
+			textLocation = new Point(x, y);
 		}
+		else
+		{
+			Point projected = Perspective.localToCanvas(
+				client,
+				death.getLocation(),
+				death.getLevel(),
+				300);
+			if (projected != null)
+			{
+				textLocation = new Point(
+					projected.getX() - fontMetrics.stringWidth(text) / 2,
+					projected.getY());
+			}
+		}
+
+		if (textLocation != null)
+		{
+			OverlayUtil.renderTextLocation(graphics, textLocation, text, Color.WHITE);
+		}
+	}
+
+	private Shape getDeathClickbox()
+	{
+		RuneLiteObject death = plugin.getDeathObject();
+		if (death == null || !death.isActive() || death.getModel() == null)
+		{
+			return null;
+		}
+
+		WorldView worldView = client.getWorldView(death.getWorldView());
+		if (worldView == null)
+		{
+			return null;
+		}
+
+		return Perspective.getClickbox(
+			client,
+			worldView,
+			death.getModel(),
+			death.getOrientation(),
+			death.getLocation().getX(),
+			death.getLocation().getY(),
+			death.getZ());
 	}
 
 	private void renderRedClick(Graphics2D graphics)

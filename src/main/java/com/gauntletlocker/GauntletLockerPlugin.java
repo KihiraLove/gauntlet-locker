@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Set;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.AnimationController;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
@@ -18,7 +19,6 @@ import net.runelite.api.Point;
 import net.runelite.api.RuneLiteObject;
 import net.runelite.api.Scene;
 import net.runelite.api.Tile;
-import net.runelite.api.AnimationController;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ClientTick;
@@ -45,11 +45,14 @@ public class GauntletLockerPlugin extends Plugin
 	static final int HALLOWEEN_DEATH_NPC_ID = 5567;
 	static final int DEATH_ATTACK_ANIMATION = 440;
 	static final int PLAYER_STUN_ANIMATION = 881;
+	static final int PLAYER_STUN_SPOT_ANIMATION = 245;
+	static final int PLAYER_STUN_SPOT_ANIMATION_HEIGHT = 80;
 	static final int STUN_SOUND_EFFECT = 2727;
 	static final String DEATH_OVERHEAD_TEXT = "I told you this was off limits.";
 
 	static final int RED_CLICK_CYCLES = 20;
 
+	private static final int PLAYER_STUN_SPOT_ANIMATION_KEY = 0x474C;
 	private static final String GREY_OPEN = "<col=808080>";
 	private static final String GREY_CLOSE = "</col>";
 
@@ -235,6 +238,12 @@ public class GauntletLockerPlugin extends Plugin
 			death.setActive(true);
 
 			player.setAnimation(PLAYER_STUN_ANIMATION);
+			player.removeSpotAnim(PLAYER_STUN_SPOT_ANIMATION_KEY);
+			player.createSpotAnim(
+				PLAYER_STUN_SPOT_ANIMATION_KEY,
+				PLAYER_STUN_SPOT_ANIMATION,
+				PLAYER_STUN_SPOT_ANIMATION_HEIGHT,
+				0);
 			client.playSoundEffect(STUN_SOUND_EFFECT);
 		});
 	}
@@ -254,49 +263,11 @@ public class GauntletLockerPlugin extends Plugin
 	private LocalPoint getDeathSpawnPoint(Player player)
 	{
 		WorldPoint playerWorld = player.getWorldLocation();
-		GameObject nearestPortal = null;
-		int nearestDistance = Integer.MAX_VALUE;
-
-		for (GameObject portal : portals)
-		{
-			if (portal == null || portal.getPlane() != playerWorld.getPlane())
-			{
-				continue;
-			}
-
-			WorldPoint portalWorld = portal.getWorldLocation();
-			int distance = portalWorld.distanceTo2D(playerWorld);
-			if (distance < nearestDistance)
-			{
-				nearestDistance = distance;
-				nearestPortal = portal;
-			}
-		}
-
-		if (nearestPortal == null)
-		{
-			WorldPoint fallback = new WorldPoint(
-				playerWorld.getX(),
-				playerWorld.getY() + 1,
-				playerWorld.getPlane());
-			return LocalPoint.fromWorld(client, fallback);
-		}
-
-		WorldPoint portalWorld = nearestPortal.getWorldLocation();
-		int dx = Integer.compare(playerWorld.getX(), portalWorld.getX());
-		int dy = Integer.compare(playerWorld.getY(), portalWorld.getY());
-		if (dx == 0 && dy == 0)
-		{
-			dy = 1;
-		}
-
 		WorldPoint spawnWorld = new WorldPoint(
-			portalWorld.getX() + dx,
-			portalWorld.getY() + dy,
-			portalWorld.getPlane());
-
-		LocalPoint local = LocalPoint.fromWorld(client, spawnWorld);
-		return local != null ? local : nearestPortal.getLocalLocation();
+			playerWorld.getX(),
+			playerWorld.getY() + 1,
+			playerWorld.getPlane());
+		return LocalPoint.fromWorld(client, spawnWorld);
 	}
 
 	private Model buildDeathModel()
@@ -397,6 +368,12 @@ public class GauntletLockerPlugin extends Plugin
 		removeDeathObject();
 		redClickPoint = null;
 		redClickStartCycle = -1;
+
+		Player player = client.getLocalPlayer();
+		if (player != null)
+		{
+			player.removeSpotAnim(PLAYER_STUN_SPOT_ANIMATION_KEY);
+		}
 	}
 
 	private void removeDeathObject()
