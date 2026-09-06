@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.AnimationController;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.Constants;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
 import net.runelite.api.Model;
@@ -16,6 +17,7 @@ import net.runelite.api.ModelData;
 import net.runelite.api.NPCComposition;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
+import net.runelite.api.Renderable;
 import net.runelite.api.RuneLiteObject;
 import net.runelite.api.Scene;
 import net.runelite.api.Tile;
@@ -27,6 +29,8 @@ import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.gameval.AnimationID;
+import net.runelite.api.gameval.SpotanimID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -45,14 +49,17 @@ public class GauntletLockerPlugin extends Plugin
 	static final int HALLOWEEN_DEATH_NPC_ID = 5567;
 	static final int DEATH_ATTACK_ANIMATION = 440;
 	static final int PLAYER_STUN_ANIMATION = 881;
-	static final int PLAYER_STUN_SPOT_ANIMATION = 245;
+	static final int PLAYER_STUN_SPOT_ANIMATION = SpotanimID.STUNNED_THIEVING;
 	static final int PLAYER_STUN_SPOT_ANIMATION_HEIGHT = 80;
 	static final int STUN_SOUND_EFFECT = 2727;
 	static final String DEATH_OVERHEAD_TEXT = "I told you this was off limits.";
 
 	static final int RED_CLICK_CYCLES = 20;
+	static final int DEATH_LIFETIME_CYCLES = 2400 / Constants.CLIENT_TICK_LENGTH;
 
 	private static final int PLAYER_STUN_SPOT_ANIMATION_KEY = 0x474C;
+	private static final int SMOKEPUFF_MODEL_ID = 3076;
+	private static final int SMOKEPUFF_HEIGHT = 124;
 	private static final String GREY_OPEN = "<col=808080>";
 	private static final String GREY_CLOSE = "</col>";
 
@@ -68,6 +75,8 @@ public class GauntletLockerPlugin extends Plugin
 	@Getter
 	private RuneLiteObject deathObject;
 
+	private RuneLiteObject smokeObject;
+
 	@Getter
 	private String deathOverheadText;
 
@@ -76,6 +85,8 @@ public class GauntletLockerPlugin extends Plugin
 
 	@Getter
 	private int redClickStartCycle = -1;
+
+	private int deathSpawnCycle = -1;
 
 	@Provides
 	GauntletLockerConfig provideConfig(ConfigManager configManager)
@@ -196,6 +207,14 @@ public class GauntletLockerPlugin extends Plugin
 			redClickPoint = null;
 			redClickStartCycle = -1;
 		}
+
+		if (deathObject != null
+			&& deathObject.isActive()
+			&& deathSpawnCycle >= 0
+			&& client.getGameCycle() - deathSpawnCycle >= DEATH_LIFETIME_CYCLES)
+		{
+			dismissDeath();
+		}
 	}
 
 	private void startDeathSequence()
@@ -203,6 +222,7 @@ public class GauntletLockerPlugin extends Plugin
 		clientThread.invoke(() ->
 		{
 			removeDeathObject();
+			removeSmokeObject();
 
 			Player player = client.getLocalPlayer();
 			if (player == null)
@@ -226,15 +246,17 @@ public class GauntletLockerPlugin extends Plugin
 			AnimationController attack = new AnimationController(client, DEATH_ATTACK_ANIMATION)
 				.setOnFinished(controller ->
 				{
-					if (deathObject == death)
+					if (deathObject == death && death.isActive())
 					{
-						removeDeathObject();
+						death.setAnimationController(
+							new AnimationController(client, AnimationID.HUMAN_READY_SCYTHE));
 					}
 				});
 			death.setAnimationController(attack);
 
 			deathObject = death;
 			deathOverheadText = DEATH_OVERHEAD_TEXT;
+			deathSpawnCycle = client.getGameCycle();
 			death.setActive(true);
 
 			player.setAnimation(PLAYER_STUN_ANIMATION);
@@ -246,6 +268,53 @@ public class GauntletLockerPlugin extends Plugin
 				0);
 			client.playSoundEffect(STUN_SOUND_EFFECT);
 		});
+	}
+
+	private void dismissDeath()
+	{
+		RuneLiteObject death = deathObject;
+		if (death == null || !death.isActive())
+		{
+			return;
+		}
+
+		LocalPoint location = death.getLocation();
+		int level = death.getLevel();
+		int z = death.getZ();
+
+		removeDeathObject();
+		spawnDismissSmoke(location, level, z);
+	}
+
+	private void spawnDismissSmoke(LocalPoint location, int level, int groundZ)
+	{
+		removeSmokeObject();
+
+		ModelData smokeModelData = client.loadModelData(SMOKEPUFF_MODEL_ID);
+		if (smokeModelData == null)
+		{
+			log.warn("Unable to load random-event smoke model");
+			return;
+		}
+
+		RuneLiteObject smoke = client.createRuneLiteObject();
+		smoke.setModel(smokeModelData.light(104, 890, -30, -50, -30));
+		smoke.setLocation(location, level);
+		// Random-event dismissal uses spotanim_map(smokepuff, npc_coord, 124, 0).
+		smoke.setZ(groundZ - SMOKEPUFF_HEIGHT);
+		smoke.setRenderMode(Renderable.RENDERMODE_SORTED);
+		smoke.setAnimationController(
+			new AnimationController(client, AnimationID.SMOKEPUFF)
+				.setOnFinished(controller ->
+				{
+					if (smokeObject == smoke)
+					{
+						removeSmokeObject();
+					}
+				}));
+
+		smokeObject = smoke;
+		smoke.setActive(true);
 	}
 
 	private void recordRedClick()
@@ -366,6 +435,7 @@ public class GauntletLockerPlugin extends Plugin
 	private void resetSequence()
 	{
 		removeDeathObject();
+		removeSmokeObject();
 		redClickPoint = null;
 		redClickStartCycle = -1;
 
@@ -384,6 +454,16 @@ public class GauntletLockerPlugin extends Plugin
 		}
 		deathObject = null;
 		deathOverheadText = null;
+		deathSpawnCycle = -1;
+	}
+
+	private void removeSmokeObject()
+	{
+		if (smokeObject != null && smokeObject.isActive())
+		{
+			smokeObject.setActive(false);
+		}
+		smokeObject = null;
 	}
 
 	private static boolean isEnterOption(String option)
