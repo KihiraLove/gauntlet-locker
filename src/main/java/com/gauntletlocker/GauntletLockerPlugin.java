@@ -1,7 +1,6 @@
 package com.gauntletlocker;
 
 import com.google.inject.Inject;
-import com.google.inject.Provides;
 import java.util.HashSet;
 import java.util.Set;
 import lombok.Getter;
@@ -32,7 +31,6 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.gameval.AnimationID;
 import net.runelite.api.gameval.SpotanimID;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -67,7 +65,6 @@ public class GauntletLockerPlugin extends Plugin
 	@Inject private ClientThread clientThread;
 	@Inject private OverlayManager overlayManager;
 	@Inject private GauntletPortalOverlay overlay;
-	@Inject private GauntletLockerConfig config;
 
 	@Getter
 	private final Set<GameObject> portals = new HashSet<>();
@@ -87,12 +84,6 @@ public class GauntletLockerPlugin extends Plugin
 	private int redClickStartCycle = -1;
 
 	private int deathSpawnCycle = -1;
-
-	@Provides
-	GauntletLockerConfig provideConfig(ConfigManager configManager)
-	{
-		return configManager.getConfig(GauntletLockerConfig.class);
-	}
 
 	@Override
 	protected void startUp()
@@ -194,7 +185,7 @@ public class GauntletLockerPlugin extends Plugin
 		if (option.equalsIgnoreCase("Examine"))
 		{
 			event.consume();
-			client.addChatMessage(ChatMessageType.OBJECT_EXAMINE, "", config.examineText(), null);
+			client.addChatMessage(ChatMessageType.OBJECT_EXAMINE, "", "Does not open from this side.", null);
 		}
 	}
 
